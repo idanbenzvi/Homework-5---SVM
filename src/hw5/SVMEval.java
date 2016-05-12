@@ -69,37 +69,44 @@ public class SVMEval {
 //    Note: After using this method, note that if you use other Instances objects and you want
 //    to use the subset of features you should remove the features that backwardsWrapper
 //    chose to remove
-    public void backwardsWrapper(double T, int K, Instances instances){
+    public Instances backwardsWrapper(double T, int K, Instances instances){
         double error_diff = 0;
-        int i_minimal = 1;
+        int i_minimal=0;
+
         double original_error = calcCrossValidationError(instances);
         double minimal_error;
 
-        HashSet<Attribute> feature_set = new HashSet<Attribute>();
+//        HashSet<Attribute> feature_set = new HashSet<Attribute>();
 
         do{
-            i_minimal =1;
+            //rese the i value each time the while loop iterates in order to restart the attribute search process
+            i_minimal = 0;
+
             //calculate cross validation error without the first feature in the attributes array
-            minimal_error = calcCrossValidationError(removeFeature(instances,0));
-            
-            minimal_error = the SVM cross validation error on the set of features S without {x_1}
-                For each i in {2…|S|} {
-                    new_error = the SVM cross validation error on the set of features S without {x_i}
-                    if (new_error < minimal_error) {
+            minimal_error = calcCrossValidationError(removeFeature(instances,i_minimal));
+
+            //iterate over all possible attributes in order to find the attribute which will result in the minimal
+            // cross validation error.
+               for(int i = 1 ; i <= instances.numAttributes() ; i++) {
+                    double new_error = calcCrossValidationError(removeFeature(instances,i));
+
+                   if (new_error < minimal_error) {
                         minimal_error = new_error;
                         i_minimal = i;
-                    }
-                }
-                error_diff = minimal_error – original_error
-                If (error_diff < threshold t){
-                    Remove X_i_minimal from S
+                   }
                 }
 
+            //after finding the index of the minimal attribute, evaluate if the difference is small enough (smaller than
+            //the threshold)
+            error_diff = minimal_error - original_error;
 
+            if (error_diff < T){
+                    instances = removeFeature(instances,i);
+                }
+        }while(instances.numAttributes()==K || error_diff > T);
 
-        }while(feature_set.size()<K || error_diff > T);
-
-
+        //return the instances without the removed features
+        return instances;
     }
 
     private Instances removeFeature(Instances instances,int attributeIx) {
