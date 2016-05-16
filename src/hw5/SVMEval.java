@@ -6,6 +6,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.Random;
 
 import weka.classifiers.functions.SMO;
 import weka.classifiers.functions.supportVector.Kernel;
@@ -47,6 +48,7 @@ public class SVMEval {
 		return inputReader;
 	}
 
+
 	/**
 	 * Sets the class index as the last attribute.
 	 * @param fileName
@@ -63,11 +65,13 @@ public class SVMEval {
     public void buildClassifier(Instances instances) throws Exception{
             //builds the classifier using Weka's built in SMO SVM classifier module
             mySMO.buildClassifier(instances);
-
-
         }
 
-//    Implement a method backwardsWrapper which performs feature selection (explanation after
+
+
+
+
+    //    Implement a method backwardsWrapper which performs feature selection (explanation after
 //                                                                          programming instructions):
 //    Input: threshold, min number of attributes, instances
 //    Action: performs the backwards wrapper feature selection algorithm as explained
@@ -184,35 +188,37 @@ public class SVMEval {
      * @param instances
      * @return kernel of the SVM Classifier
      */
-    public void chooseKernel(Instances instances){
+    public void chooseKernel(Instances instances) throws Exception{
+        //error from cross fold validation process
+        double error = Double.MAX_VALUE;
+
         //set kernel to RBF kernel
         RBFKernel kernel = new RBFKernel();
         PolyKernel kernel2 = new PolyKernel();
 
-        double error = Double.MAX_VALUE;
 
         //set the first kernel - RBF
         mySMO.setKernel(kernel);
 
-        int[] foldsIndices = foldIndices(instances,C_NUM_FOLDS);
 
         for(int i = C_RBF_KERNEL_MIN ; C_RBF_KERNEL_MAX <= 2; i++){
-            //set the kernal gamma value
-            kernel.setGamma(Math.pow(2,i));
 
-            //get the instances in the folds and test them
-            error = calcCrossValidationError(foldInstances);
+                //set the kernal gamma value
+                kernel.setGamma(Math.pow(2, i));
 
-            //retain the best kernel result and set it as the kernel for our hypothesis
-           if(error < m_bestError){
-                m_bestError = error;
-                m_bestKernel = RBF;
-                m_bestRBFKernelValue = Math.pow(2,i);
+                //get the instances in the folds and test them
+                error = calcCrossValidationError(instances);
+
+                //retain the best kernel result and set it as the kernel for our hypothesis
+                if (error < m_bestError) {
+                    m_bestError = error;
+                    m_bestKernel = RBF;
+                    m_bestRBFKernelValue = Math.pow(2, i);
+                }
+
+                //classify the instances loaded in order to get the best cross-validation error
             }
 
-            //classify the instances loaded in order to get the best cross-validation error
-
-        }
 
         //set the kernel to the polynomial kernel
         mySMO.setKernel(kernel2);
@@ -222,7 +228,7 @@ public class SVMEval {
 
             kernel2.setExponent(i);
 
-            error = calcCrossValidationError(foldInstances);
+            error = calcCrossValidationError(foldsInstances);
 
             //retain the best kernel result and set it as the kernel for our hypothesis
             if(error < m_bestError){
@@ -236,8 +242,6 @@ public class SVMEval {
 
 
     public double calcCrossValidationError(Instances instances){
-
-        //calculate the error on all possible folds created using the instances
 
         //get splitting indices for folding
         int[] subsetIndices = foldIndices(instances,C_NUM_FOLDS);
@@ -278,57 +282,6 @@ public class SVMEval {
         return instances;
     }
 
-    public static void main(String[] args){
-        try {
-		    //load datasets according to test and train split instructions
-            loadData("file.txt");
-            loadData("file2.txt");
-
-            //find the best kernel possible using chooseKernel
-
-            //perform feature selection
-
-            //build the classifier
-
-            //only on the test set
-
-            //remove unnecessary features
-
-            //calculate average error using the trained classifier
-
-            //print average error
-
-            String training = "ElectionsData_train.txt";
-            String testing = "ElectionsData_test.txt";
-
-            Instances trainingData = loadData(training);
-            Instances testData = loadData(testing);
-            trainingData.setClassIndex(0);
-            testData.setClassIndex(0);
-
-            SVMEval eval = new SVMEval();
-
-            Instances workingSet = eval.backwardsWrapper(trainingData, 0.05, 5);
-
-            eval.buildClassifier(workingSet);
-
-            BufferedReader datafile2 = readDataFile(testing);
-
-            Instances dataTest = new Instances(datafile2);
-            dataTest.setClassIndex(0);
-
-            Instances subsetOfFeatures =
-                    eval.removeNonSelectedFeatures(dataTest);
-
-            double avgError = eval.calcAvgError(subsetOfFeatures);
-
-            System.out.println(avgError);
-        }
-        catch (Exception c) {
-            System.out.println("failed building classifier");
-        }
-	}
-
 
     // assistive methods - folding
 
@@ -338,23 +291,29 @@ public class SVMEval {
      * @return
      */
     private int[] foldIndices(Instances instances, int foldNum){
+        //todo test method
         //divide to the nearest integer value possible (last set might be smaller than int value by remainder)
+
         int instCount = (int) Math.floor( (double) instances.numInstances() / foldNum); //rounded version of course
 
         int[] foldIndexArray = new int[C_NUM_FOLDS+1];
-        int multiplier = 1;
-        int ix = 0;
         foldIndexArray[0] = 0;
+        int remainder = instances.numInstances() % foldNum;
 
-        //keep only the indices of the instances that are cutoff points between sets (each one composing of 10%)
-        while(multiplier*instCount <= instances.numInstances()){
-            foldIndexArray[multiplier] = multiplier * instCount;
-            multiplier++;
+        int foldSize = 0;
+        //we will need to distribute the instances between all the folds, in order to prevent large differences between
+        //the folds
+        if(remainder>1)
+             foldSize = instances.numInstances() / C_NUM_FOLDS + 1;
+        else
+             foldSize = instances.numInstances() / C_NUM_FOLDS;
 
-            if(multiplier==10){
-                foldIndexArray[10] = instances.numInstances();
-                break;
-            }
+        for(int i = foldSize ; i < instances.numInstances() ; i+= foldSize){
+
+            foldIndexArray[foldSize/i]= i ;
+
+            if(i>=instances.numInstances())
+                foldIndexArray[C_NUM_FOLDS] = instances.numInstances()-1;
         }
 
         return foldIndexArray;
@@ -387,5 +346,51 @@ public class SVMEval {
         return instancesArray;
     }
 
+    public static void main(String[] args){
+        try {
+            //load datasets according to test and train split instructions
+            loadData("file.txt");
+            loadData("file2.txt");
+
+            String training = "ElectionsData_train.txt";
+            String testing = "ElectionsData_test.txt";
+
+            Instances trainingData = loadData(training);
+            Instances testData = loadData(testing);
+
+
+            //todo : test randomization of instances
+            Random random = new Random(123123);
+            trainingData.randomize(random);
+            testData.randomize(random);
+
+            trainingData.setClassIndex(0);
+            testData.setClassIndex(0);
+
+            SVMEval eval = new SVMEval();
+
+            //choose the best kernel using cross fold validation
+            eval.chooseKernel(trainingData);
+
+            Instances workingSet = eval.backwardsWrapper(trainingData, 0.05, 5);
+
+            eval.buildClassifier(workingSet);
+
+            BufferedReader datafile2 = readDataFile(testing);
+
+            Instances dataTest = new Instances(datafile2);
+            dataTest.setClassIndex(0);
+
+            Instances subsetOfFeatures =
+                    eval.removeNonSelectedFeatures(dataTest);
+
+            double avgError = eval.calcAvgError(subsetOfFeatures);
+
+            System.out.println(avgError);
+        }
+        catch (Exception c) {
+            System.out.println("failed building classifier");
+        }
+    }
 
 }
