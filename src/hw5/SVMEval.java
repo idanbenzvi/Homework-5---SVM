@@ -4,8 +4,8 @@ import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Enumeration;
-import java.util.HashSet;
 
 import weka.classifiers.functions.SMO;
 import weka.classifiers.functions.supportVector.Kernel;
@@ -23,9 +23,17 @@ public class SVMEval {
     private final int C_NUM_FOLDS = 3;
     private final int C_POLY_KERNEL_MIN = 2;
     private final int C_POLY_KERNEL_MAX = 4;
-    private final int C_RBF_KERNEL_MIN = 2;
+    private final int C_RBF_KERNEL_MAX = 2;
     private final int C_RBF_KERNEL_MIN = -10;
 
+    public double m_bestError = Double.MAX_VALUE;
+    public int m_bestKernel = 0;
+    private final int RBF = 0;
+    private final int POLY = 1;
+    public double m_bestRBFKernelValue = 0;
+    public int m_bestPolyKernelValue = 0;
+
+    private ArrayList<Integer> m_removed_features ;
 
 	public static BufferedReader readDataFile(String filename) {
 		BufferedReader inputReader = null;
@@ -69,17 +77,23 @@ public class SVMEval {
 //    Note: After using this method, note that if you use other Instances objects and you want
 //    to use the subset of features you should remove the features that backwardsWrapper
 //    chose to remove
-    public Instances backwardsWrapper(double T, int K, Instances instances){
+    public Instances backwardsWrapper(Instances instances,double T, int K){
         double error_diff = 0;
         int i_minimal=0;
+        int removedIx = 0;
+
+        String[] featureArray = new String[instances.numAttributes()];
+
+        //init the the removed feature field, in which we will retain the removed attributes
+        //the indices can only be used in the order they are stored since each index refelcts its corresponding attribute
+        //after previous entries have been removed before it.
+        m_removed_features = new ArrayList<Integer>();
 
         double original_error = calcCrossValidationError(instances);
         double minimal_error;
 
-//        HashSet<Attribute> feature_set = new HashSet<Attribute>();
-
         do{
-            //rese the i value each time the while loop iterates in order to restart the attribute search process
+            //reset the i value each time the while loop iterates in order to restart the attribute search process
             i_minimal = 0;
 
             //calculate cross validation error without the first feature in the attributes array
@@ -101,7 +115,10 @@ public class SVMEval {
             error_diff = minimal_error - original_error;
 
             if (error_diff < T){
-                    instances = removeFeature(instances,i);
+                //store the index of the current removed feature
+                    m_removed_features.add(i_minimal);
+                //remove the feature from the instances
+                    instances = removeFeature(instances,i_minimal);
                 }
         }while(instances.numAttributes()==K || error_diff > T);
 
@@ -123,7 +140,7 @@ public class SVMEval {
             return workingSet;
         }
         catch(Exception e) {
-            System.out.println("COULD NOT REMOVE THE given attribute");
+            System.out.println("COULD NOT REMOVE THE ATTRIBUTE");
             return null;
         }
 
@@ -170,6 +187,11 @@ public class SVMEval {
     public void chooseKernel(Instances instances){
         //set kernel to RBF kernel
         RBFKernel kernel = new RBFKernel();
+        PolyKernel kernel2 = new PolyKernel();
+
+        double error = Double.MAX_VALUE;
+
+        //set the first kernel - RBF
         mySMO.setKernel(kernel);
 
         int[] foldsIndices = foldIndices(instances,C_NUM_FOLDS);
@@ -179,21 +201,37 @@ public class SVMEval {
             kernel.setGamma(Math.pow(2,i));
 
             //get the instances in the folds and test them
-            calcCrossValidationError(foldInstances);
+            error = calcCrossValidationError(foldInstances);
 
-
+            //retain the best kernel result and set it as the kernel for our hypothesis
+           if(error < m_bestError){
+                m_bestError = error;
+                m_bestKernel = RBF;
+                m_bestRBFKernelValue = Math.pow(2,i);
+            }
 
             //classify the instances loaded in order to get the best cross-validation error
+
         }
+
+        //set the kernel to the polynomial kernel
+        mySMO.setKernel(kernel2);
 
         //polynomial kernel
         for(int i = C_POLY_KERNEL_MIN ; i <= C_POLY_KERNEL_MAX ; i++){
-            PolyKernel kernel2 = new PolyKernel();
+
             kernel2.setExponent(i);
 
-            calcCrossValidationError(foldInstances);
-        }
+            error = calcCrossValidationError(foldInstances);
 
+            //retain the best kernel result and set it as the kernel for our hypothesis
+            if(error < m_bestError){
+                m_bestError = error;
+                m_bestKernel = POLY;
+                m_bestRBFKernelValue = i;
+            }
+
+        }
     }
 
 
@@ -221,18 +259,26 @@ public class SVMEval {
         }
 
         //divide the sum of errors by the number of folds to calculate the cross validation error
-        cvError /= M_FOLD_NUM;
-        m_calcTimeAvg = calcTimeAvg / M_FOLD_NUM;
+        cvError /= C_NUM_FOLDS;
 
         return cvError;
     }
 
+    public Instances removeNonSelectedFeatures(Instances instances){
+        //use the previously calculated feature set (from the backwards method) in order to remove the
+        //features from the given instances set. NOTE: the same instances attributes must be used otherwise there willbe
+        //no meaning whatsoever to the newly created instances objects (since features must be the same on both sets, at
+        // the onset).
+        for(int i = 0 ; i < m_removed_features.size(); i ++){
+            //remove the feature from the given features, and continue processing the instances set until all features
+            //have been removed.
+            instances = removeFeature(instances,m_removed_features.get(i));
+        }
 
+        return instances;
+    }
 
-
-
-
-	public static void main(String[] args){
+    public static void main(String[] args){
         try {
 		    //load datasets according to test and train split instructions
             loadData("file.txt");
@@ -262,28 +308,25 @@ public class SVMEval {
 
             SVMEval eval = new SVMEval();
 
+            Instances workingSet = eval.backwardsWrapper(trainingData, 0.05, 5);
 
-
-            Instances workingSet = eval.backwardsWrapper(data, 0.05, 5);
             eval.buildClassifier(workingSet);
+
             BufferedReader datafile2 = readDataFile(testing);
+
             Instances dataTest = new Instances(datafile2);
             dataTest.setClassIndex(0);
+
             Instances subsetOfFeatures =
                     eval.removeNonSelectedFeatures(dataTest);
+
             double avgError = eval.calcAvgError(subsetOfFeatures);
+
             System.out.println(avgError);
         }
         catch (Exception c) {
             System.out.println("failed building classifier");
         }
-            //instantiate the SVM
-
-		//build the classifier
-
-		//cross-validation
-
-
 	}
 
 
@@ -298,7 +341,7 @@ public class SVMEval {
         //divide to the nearest integer value possible (last set might be smaller than int value by remainder)
         int instCount = (int) Math.floor( (double) instances.numInstances() / foldNum); //rounded version of course
 
-        int[] foldIndexArray = new int[M_FOLD_NUM+1];
+        int[] foldIndexArray = new int[C_NUM_FOLDS+1];
         int multiplier = 1;
         int ix = 0;
         foldIndexArray[0] = 0;
