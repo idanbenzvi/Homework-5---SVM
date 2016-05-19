@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.Random;
+import java.util.concurrent.ExecutionException;
 
 import weka.classifiers.functions.SMO;
 import weka.classifiers.functions.supportVector.Kernel;
@@ -20,7 +21,16 @@ import weka.filters.unsupervised.attribute.Remove;
 
 public class SVMEval {
 
+    //main SMO classifier
     private SMO mySMO = new SMO();
+    //the validation SMO will be used to calculate the cross-validation-error by the CV method and given instances. this
+    //will be useful since we wouldn't like to overwrite or affect the class' main classifier when testing for CV
+    //errors.
+    private SMO validationSMO = new SMO();
+
+    private boolean CVSMOactive = false; //switch to denote we are using the cross-validation classifier to calculate error (contrary to the main SMO classifier)
+
+
     private final int C_NUM_FOLDS = 3;
     private final int C_POLY_KERNEL_MIN = 2;
     private final int C_POLY_KERNEL_MAX = 4;
@@ -81,7 +91,7 @@ public class SVMEval {
 //    Note: After using this method, note that if you use other Instances objects and you want
 //    to use the subset of features you should remove the features that backwardsWrapper
 //    chose to remove
-    public Instances backwardsWrapper(Instances instances,double T, int K){
+    public Instances backwardsWrapper(Instances instances,double T, int K) throws Exception{
         double error_diff = 0;
         int i_minimal=0;
         int removedIx = 0;
@@ -157,6 +167,14 @@ public class SVMEval {
 //
     private double calcAvgError(Instances instances){
 
+        //choose current classifier
+        SMO workingClassifier ;
+
+        if(CVSMOactive==true)
+            workingClassifier = validationSMO;
+        else
+            workingClassifier = mySMO;
+
         //enumration of instances to go over
         Enumeration<Instance> instEnum = instances.enumerateInstances();
 
@@ -166,7 +184,7 @@ public class SVMEval {
              {
                  try{
                      Instance currentInstance = instEnum.nextElement();
-                     if(currentInstance.classValue()!=mySMO.classifyInstance(currentInstance))
+                     if(currentInstance.classValue()!=workingClassifier.classifyInstance(currentInstance))
                          countErrors++;
                  }
                  catch (Exception e){
@@ -196,19 +214,21 @@ public class SVMEval {
         RBFKernel kernel = new RBFKernel();
         PolyKernel kernel2 = new PolyKernel();
 
+        //set classifier to CV classifier during the kernel selection process
+        CVSMOactive = true;
 
-        //set the first kernel - RBF
-        mySMO.setKernel(kernel);
 
 
-        for(int i = C_RBF_KERNEL_MIN ; C_RBF_KERNEL_MAX <= 2; i++){
-
+        for(int i = C_RBF_KERNEL_MIN ; i <= C_RBF_KERNEL_MAX; i++){
                 //set the kernal gamma value
-                kernel.setGamma(Math.pow(2, i));
+            kernel.setGamma(Math.pow(2, i));
+
+            //set the kernel to the validation classifier during the testing phase
+            validationSMO.setKernel(kernel);
 
                 //get the instances in the folds and test them
                 error = calcCrossValidationError(instances);
-
+            System.out.println(error);
                 //retain the best kernel result and set it as the kernel for our hypothesis
                 if (error < m_bestError) {
                     m_bestError = error;
@@ -219,16 +239,15 @@ public class SVMEval {
                 //classify the instances loaded in order to get the best cross-validation error
             }
 
-
-        //set the kernel to the polynomial kernel
-        mySMO.setKernel(kernel2);
+        //set the kernel to the polynomial kernel - and test it
+        validationSMO.setKernel(kernel2);
 
         //polynomial kernel
         for(int i = C_POLY_KERNEL_MIN ; i <= C_POLY_KERNEL_MAX ; i++){
 
             kernel2.setExponent(i);
 
-            error = calcCrossValidationError(foldsInstances);
+            error = calcCrossValidationError(instances);
 
             //retain the best kernel result and set it as the kernel for our hypothesis
             if(error < m_bestError){
@@ -241,7 +260,7 @@ public class SVMEval {
     }
 
 
-    public double calcCrossValidationError(Instances instances){
+    public double calcCrossValidationError(Instances instances) throws Exception{
 
         //get splitting indices for folding
         int[] subsetIndices = foldIndices(instances,C_NUM_FOLDS);
@@ -254,12 +273,12 @@ public class SVMEval {
             //divide instances into 2 Instances objects, one containing the fold, the other the rest of the instances (2/3 remaining)
             instArray = getFoldInstances(subsetIndices[foldix],subsetIndices[foldix+1],instances);
 
-            //calculate avg error for current fold
-            cvError += calcAvgError(instArray[1],instArray[0]);
+            //set the current instances x-1 folds into the validation classifier - and build the classifier.
+            //after doing so we will be able to calculate the average classifcation error.
+            validationSMO.buildClassifier(instArray[0]);
 
-            //for each instance of  the smaller group, locate the K nearest neighbors according to the selected
-            //function. After doing so, classify according to these neighbors.
-            //keep classification
+            //calculate avg error for current fold (which is the 1/3 of instances that remain)
+            cvError += calcAvgError(instArray[1]);
         }
 
         //divide the sum of errors by the number of folds to calculate the cross validation error
@@ -303,18 +322,21 @@ public class SVMEval {
         int foldSize = 0;
         //we will need to distribute the instances between all the folds, in order to prevent large differences between
         //the folds
-        if(remainder>1)
-             foldSize = instances.numInstances() / C_NUM_FOLDS + 1;
-        else
-             foldSize = instances.numInstances() / C_NUM_FOLDS;
+        for(int i = 1 ; i < C_NUM_FOLDS+1 ; i++){
 
-        for(int i = foldSize ; i < instances.numInstances() ; i+= foldSize){
+            if(remainder>0) {
+                foldSize = instances.numInstances() / C_NUM_FOLDS + 1;
+                remainder--;
+            }
+            else
+                foldSize = instances.numInstances() / C_NUM_FOLDS;
 
-            foldIndexArray[foldSize/i]= i ;
+            foldIndexArray[i]= foldSize +foldIndexArray[i-1];
 
-            if(i>=instances.numInstances())
-                foldIndexArray[C_NUM_FOLDS] = instances.numInstances()-1;
         }
+
+        //make sure we don't go over / under the instances array boundries
+        foldIndexArray[C_NUM_FOLDS] = instances.numInstances()-1;
 
         return foldIndexArray;
     }
@@ -349,15 +371,15 @@ public class SVMEval {
     public static void main(String[] args){
         try {
             //load datasets according to test and train split instructions
-            loadData("file.txt");
-            loadData("file2.txt");
 
             String training = "ElectionsData_train.txt";
             String testing = "ElectionsData_test.txt";
 
+            loadData(training);
+            loadData(testing);
+
             Instances trainingData = loadData(training);
             Instances testData = loadData(testing);
-
 
             //todo : test randomization of instances
             Random random = new Random(123123);
