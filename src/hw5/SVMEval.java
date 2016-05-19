@@ -104,19 +104,22 @@ public class SVMEval {
         m_removed_features = new ArrayList<Integer>();
 
         double original_error = calcCrossValidationError(instances);
-        double minimal_error;
-
+        double minimal_error =Double.MAX_VALUE;
+        double new_error = Double.MAX_VALUE;
         do{
             //reset the i value each time the while loop iterates in order to restart the attribute search process
-            i_minimal = 0;
+            i_minimal = 1;
 
-            //calculate cross validation error without the first feature in the attributes array
+            //calculate cross validation error without the first feature in the attributes array. While
+            //avoiding the class attribute index
             minimal_error = calcCrossValidationError(removeFeature(instances,i_minimal));
 
             //iterate over all possible attributes in order to find the attribute which will result in the minimal
             // cross validation error.
-               for(int i = 1 ; i <= instances.numAttributes() ; i++) {
-                    double new_error = calcCrossValidationError(removeFeature(instances,i));
+               for(int i = 2 ; i < instances.numAttributes() ; i++) {
+
+//
+                       new_error = calcCrossValidationError(removeFeature(instances,i));
 
                    if (new_error < minimal_error) {
                         minimal_error = new_error;
@@ -132,9 +135,10 @@ public class SVMEval {
                 //store the index of the current removed feature
                     m_removed_features.add(i_minimal);
                 //remove the feature from the instances
-                    instances = removeFeature(instances,i_minimal);
+                System.out.println("removing attirbute:"+instances.attribute(i_minimal).name());
+                instances = removeFeature(instances,i_minimal);
                 }
-        }while(instances.numAttributes()==K || error_diff > T);
+        }while(instances.numAttributes()>K || error_diff > T);
 
         //return the instances without the removed features
         return instances;
@@ -228,13 +232,16 @@ public class SVMEval {
             //get the instances in the folds and test them
             error = calcCrossValidationError(instances);
 
-            System.out.println(error);
+//            System.out.println(error);
 
             //retain the best kernel result and set it as the kernel for our hypothesis
                 if (error < m_bestError) {
                     m_bestError = error;
-                    m_bestKernel = kernel;
-//                    m_bestRBFKernelValue = Math.pow(2, i);
+                    RBFKernel newRBF = new RBFKernel();
+                    newRBF.setGamma(Math.pow(2, i));
+                    m_bestKernel = newRBF;
+
+//                    m_bestRBFKernelValue = i;
                 }
 
                 //classify the instances loaded in order to get the best cross-validation error
@@ -250,16 +257,23 @@ public class SVMEval {
 
             error = calcCrossValidationError(instances);
 
-            System.out.println(error);
+//            System.out.println(error);
 
             //retain the best kernel result and set it as the kernel for our hypothesis
             if(error < m_bestError){
                 m_bestError = error;
-                m_bestKernel = kernel2;
-//                m_bestRBFKernelValue = i;
+                PolyKernel newPoly = new PolyKernel();
+                newPoly.setExponent(i);
+                m_bestKernel = newPoly;
             }
 
         }
+
+        //set the kernel after evaluating all possible options
+        mySMO.setKernel(m_bestKernel);
+
+        //use the class SMO classifier instead of the training classifier (set training switch off)
+        CVSMOactive=false;
     }
 
 
@@ -278,7 +292,10 @@ public class SVMEval {
 
             //set the current instances x-1 folds into the validation classifier - and build the classifier.
             //after doing so we will be able to calculate the average classifcation error.
+            if(CVSMOactive)
             validationSMO.buildClassifier(instArray[0]);
+            else
+            mySMO.buildClassifier(instArray[0]);
 
             //calculate avg error for current fold (which is the 1/3 of instances that remain)
             cvError += calcAvgError(instArray[1]);
@@ -401,13 +418,8 @@ public class SVMEval {
 
             eval.buildClassifier(workingSet);
 
-            BufferedReader datafile2 = readDataFile(testing);
-
-            Instances dataTest = new Instances(datafile2);
-            dataTest.setClassIndex(0);
-
             Instances subsetOfFeatures =
-                    eval.removeNonSelectedFeatures(dataTest);
+                    eval.removeNonSelectedFeatures(testData);
 
             double avgError = eval.calcAvgError(subsetOfFeatures);
 
