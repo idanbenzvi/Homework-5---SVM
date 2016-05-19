@@ -38,7 +38,7 @@ public class SVMEval {
     private final int C_RBF_KERNEL_MIN = -10;
 
     public double m_bestError = Double.MAX_VALUE;
-    public int m_bestKernel = 0;
+    public Kernel m_bestKernel ;
     private final int RBF = 0;
     private final int POLY = 1;
     public double m_bestRBFKernelValue = 0;
@@ -217,23 +217,24 @@ public class SVMEval {
         //set classifier to CV classifier during the kernel selection process
         CVSMOactive = true;
 
+        //set the kernel to the validation classifier during the testing phase
+        validationSMO.setKernel(kernel);
 
 
         for(int i = C_RBF_KERNEL_MIN ; i <= C_RBF_KERNEL_MAX; i++){
                 //set the kernal gamma value
             kernel.setGamma(Math.pow(2, i));
 
-            //set the kernel to the validation classifier during the testing phase
-            validationSMO.setKernel(kernel);
+            //get the instances in the folds and test them
+            error = calcCrossValidationError(instances);
 
-                //get the instances in the folds and test them
-                error = calcCrossValidationError(instances);
             System.out.println(error);
-                //retain the best kernel result and set it as the kernel for our hypothesis
+
+            //retain the best kernel result and set it as the kernel for our hypothesis
                 if (error < m_bestError) {
                     m_bestError = error;
-                    m_bestKernel = RBF;
-                    m_bestRBFKernelValue = Math.pow(2, i);
+                    m_bestKernel = kernel;
+//                    m_bestRBFKernelValue = Math.pow(2, i);
                 }
 
                 //classify the instances loaded in order to get the best cross-validation error
@@ -249,11 +250,13 @@ public class SVMEval {
 
             error = calcCrossValidationError(instances);
 
+            System.out.println(error);
+
             //retain the best kernel result and set it as the kernel for our hypothesis
             if(error < m_bestError){
                 m_bestError = error;
-                m_bestKernel = POLY;
-                m_bestRBFKernelValue = i;
+                m_bestKernel = kernel2;
+//                m_bestRBFKernelValue = i;
             }
 
         }
