@@ -7,7 +7,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.Random;
-import java.util.concurrent.ExecutionException;
 
 import weka.classifiers.functions.SMO;
 import weka.classifiers.functions.supportVector.Kernel;
@@ -28,8 +27,9 @@ public class SVMEval {
     //errors.
     private SMO validationSMO = new SMO();
 
-    private boolean CVSMOactive = false; //switch to denote we are using the cross-validation classifier to calculate error (contrary to the main SMO classifier)
-
+    //switch to denote we are using an ad-hoc cross-validation classifier to
+    // calculate error (contrary to the main SMO classifier)
+    private boolean CVSMOactive = false;
 
     private final int C_NUM_FOLDS = 3;
     private final int C_POLY_KERNEL_MIN = 2;
@@ -41,11 +41,15 @@ public class SVMEval {
     public Kernel m_bestKernel ;
     private final int RBF = 0;
     private final int POLY = 1;
-    public double m_bestRBFKernelValue = 0;
-    public int m_bestPolyKernelValue = 0;
 
     private ArrayList<Integer> m_removed_features ;
 
+
+    /**
+     * a buffered reader to read the data file
+     * @param filename
+     * @return an inputreader instance (used by load data)
+     */
 	public static BufferedReader readDataFile(String filename) {
 		BufferedReader inputReader = null;
 
@@ -60,7 +64,7 @@ public class SVMEval {
 
 
 	/**
-	 * Sets the class index as the last attribute.
+	 * Load the data from the inputreader into an instances object
 	 * @param fileName
 	 * @return Instances data
 	 * @throws IOException
@@ -68,10 +72,14 @@ public class SVMEval {
 	public static Instances loadData(String fileName) throws IOException{
 		BufferedReader datafile = readDataFile(fileName);
 		Instances data = new Instances(datafile);
-		data.setClassIndex(data.numAttributes() - 1);
 		return data;
 	}
 
+    /**
+     * Simply build a classifier to be used later on by the user and other class methods.
+     * @param instances
+     * @throws Exception
+     */
     public void buildClassifier(Instances instances) throws Exception{
             //builds the classifier using Weka's built in SMO SVM classifier module
             mySMO.buildClassifier(instances);
@@ -81,22 +89,26 @@ public class SVMEval {
 
 
 
-    //    Implement a method backwardsWrapper which performs feature selection (explanation after
-//                                                                          programming instructions):
-//    Input: threshold, min number of attributes, instances
-//    Action: performs the backwards wrapper feature selection algorithm as explained
-//    above.
-//            Output: New Instances object with the chosen subset of the original features, indices of
-//    chosen features.
-//    Note: After using this method, note that if you use other Instances objects and you want
-//    to use the subset of features you should remove the features that backwardsWrapper
-//    chose to remove
+
+    /**
+     *
+     *
+     *    Input: threshold, min number of attributes, instances
+     *    Action: performs the backwards wrapper feature selection algorithm as explained
+     *    above.
+     *            Output: New Instances object with the chosen subset of the original features, indices of
+     *    chosen features.
+     *
+     *    Remove the features that contribute the least from teh attributes list
+     * @param instances
+     * @param T
+     * @param K
+     * @return
+     * @throws Exception
+     */
     public Instances backwardsWrapper(Instances instances,double T, int K) throws Exception{
         double error_diff = 0;
         int i_minimal=0;
-        int removedIx = 0;
-
-        String[] featureArray = new String[instances.numAttributes()];
 
         //init the the removed feature field, in which we will retain the removed attributes
         //the indices can only be used in the order they are stored since each index refelcts its corresponding attribute
@@ -118,7 +130,7 @@ public class SVMEval {
             // cross validation error.
                for(int i = 2 ; i < instances.numAttributes() ; i++) {
 
-//
+                   //calculate the error after removing the ith feature from the dataset
                        new_error = calcCrossValidationError(removeFeature(instances,i));
 
                    if (new_error < minimal_error) {
@@ -135,7 +147,6 @@ public class SVMEval {
                 //store the index of the current removed feature
                     m_removed_features.add(i_minimal);
                 //remove the feature from the instances
-                System.out.println("removing attirbute:"+instances.attribute(i_minimal).name());
                 instances = removeFeature(instances,i_minimal);
                 }
         }while(instances.numAttributes()>K || error_diff > T);
@@ -232,8 +243,6 @@ public class SVMEval {
             //get the instances in the folds and test them
             error = calcCrossValidationError(instances);
 
-//            System.out.println(error);
-
             //retain the best kernel result and set it as the kernel for our hypothesis
                 if (error < m_bestError) {
                     m_bestError = error;
@@ -256,8 +265,6 @@ public class SVMEval {
             kernel2.setExponent(i);
 
             error = calcCrossValidationError(instances);
-
-//            System.out.println(error);
 
             //retain the best kernel result and set it as the kernel for our hypothesis
             if(error < m_bestError){
