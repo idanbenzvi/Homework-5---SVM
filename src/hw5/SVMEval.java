@@ -20,8 +20,15 @@ import weka.filters.unsupervised.attribute.Remove;
 
 public class SVMEval {
 
+    //constants
+    private final int C_NUM_FOLDS = 3;
+    private final int C_POLY_KERNEL_MIN = 2;
+    private final int C_POLY_KERNEL_MAX = 4;
+    private final int C_RBF_KERNEL_MAX = 2;
+    private final int C_RBF_KERNEL_MIN = -10;
+
     //main SMO classifier
-    private SMO mySMO = new SMO();
+    public SMO mySMO = new SMO();
     //the validation SMO will be used to calculate the cross-validation-error by the CV method and given instances. this
     //will be useful since we wouldn't like to overwrite or affect the class' main classifier when testing for CV
     //errors.
@@ -31,23 +38,16 @@ public class SVMEval {
     // calculate error (contrary to the main SMO classifier)
     private boolean CVSMOactive = false;
 
-    private final int C_NUM_FOLDS = 3;
-    private final int C_POLY_KERNEL_MIN = 2;
-    private final int C_POLY_KERNEL_MAX = 4;
-    private final int C_RBF_KERNEL_MAX = 2;
-    private final int C_RBF_KERNEL_MIN = -10;
-
+    //kernel selection fields
     public double m_bestError = Double.MAX_VALUE;
     public Kernel m_bestKernel ;
-    private final int RBF = 0;
-    private final int POLY = 1;
 
     private ArrayList<Integer> m_removed_features ;
 
 
     /**
      * a buffered reader to read the data file
-     * @param filename
+     * @param filename data file name
      * @return an inputreader instance (used by load data)
      */
 	public static BufferedReader readDataFile(String filename) {
@@ -84,11 +84,6 @@ public class SVMEval {
             //builds the classifier using Weka's built in SMO SVM classifier module
             mySMO.buildClassifier(instances);
         }
-
-
-
-
-
 
     /**
      *
@@ -133,9 +128,11 @@ public class SVMEval {
                    //calculate the error after removing the ith feature from the dataset
                        new_error = calcCrossValidationError(removeFeature(instances,i));
 
+                   //if the error calculated by removing the current attribute is smaller than the pervious minimal
+                   //error - this attribute is the new candidate for removal instead.
                    if (new_error < minimal_error) {
-                        minimal_error = new_error;
-                        i_minimal = i;
+                        minimal_error = new_error; //new best error
+                        i_minimal = i; //keep the index of the attribute
                    }
                 }
 
@@ -155,6 +152,12 @@ public class SVMEval {
         return instances;
     }
 
+    /**
+     * Removes a single feature from the instances provided, and returns the instances object without it
+     * @param instances
+     * @param attributeIx
+     * @return instances object without the selected feature
+     */
     private Instances removeFeature(Instances instances,int attributeIx) {
         try {
             //remove the feature at the given index and return the instances without it
@@ -180,6 +183,12 @@ public class SVMEval {
 //            Output: The number of prediction mistakes the classifier makes divided by the number
 //    of instances.
 //
+
+    /**
+     * Calculate the average classification error of our current classifier with regard to the true class value.
+     * @param instances
+     * @return % errors
+     */
     private double calcAvgError(Instances instances){
 
         //choose current classifier
@@ -199,6 +208,7 @@ public class SVMEval {
              {
                  try{
                      Instance currentInstance = instEnum.nextElement();
+                     //if the classification is incorrect - increment the error counter
                      if(currentInstance.classValue()!=workingClassifier.classifyInstance(currentInstance))
                          countErrors++;
                  }
@@ -236,6 +246,7 @@ public class SVMEval {
         validationSMO.setKernel(kernel);
 
 
+        //test all RBF kernels
         for(int i = C_RBF_KERNEL_MIN ; i <= C_RBF_KERNEL_MAX; i++){
                 //set the kernal gamma value
             kernel.setGamma(Math.pow(2, i));
@@ -250,10 +261,7 @@ public class SVMEval {
                     newRBF.setGamma(Math.pow(2, i));
                     m_bestKernel = newRBF;
 
-//                    m_bestRBFKernelValue = i;
                 }
-
-                //classify the instances loaded in order to get the best cross-validation error
             }
 
         //set the kernel to the polynomial kernel - and test it
@@ -264,6 +272,7 @@ public class SVMEval {
 
             kernel2.setExponent(i);
 
+            //calculate cross validation error using the selected kernel and provided instances
             error = calcCrossValidationError(instances);
 
             //retain the best kernel result and set it as the kernel for our hypothesis
@@ -284,6 +293,12 @@ public class SVMEval {
     }
 
 
+    /**
+     * perform cross validation process using x-1 folds for training the classifier and one fold to test on.
+     * @param instances
+     * @return
+     * @throws Exception
+     */
     public double calcCrossValidationError(Instances instances) throws Exception{
 
         //get splitting indices for folding
@@ -294,15 +309,16 @@ public class SVMEval {
 
         //iterate over all folds
         for(int foldix = 0 ; foldix <=C_NUM_FOLDS-1 ; foldix++) {
-            //divide instances into 2 Instances objects, one containing the fold, the other the rest of the instances (2/3 remaining)
+            //divide instances into 2 Instances objects, one containing the majority of instance (x-1 folds), the other the rest of the instances (to test upon)
             instArray = getFoldInstances(subsetIndices[foldix],subsetIndices[foldix+1],instances);
 
             //set the current instances x-1 folds into the validation classifier - and build the classifier.
-            //after doing so we will be able to calculate the average classifcation error.
+            //after doing so we will be able to calculate the average classifcation error. As explained in the
+            // previous recitation
             if(CVSMOactive)
-            validationSMO.buildClassifier(instArray[0]);
+                validationSMO.buildClassifier(instArray[0]);
             else
-            mySMO.buildClassifier(instArray[0]);
+                mySMO.buildClassifier(instArray[0]);
 
             //calculate avg error for current fold (which is the 1/3 of instances that remain)
             cvError += calcAvgError(instArray[1]);
@@ -314,6 +330,13 @@ public class SVMEval {
         return cvError;
     }
 
+    /**
+     * Removes all features that are not used by the SMO classifier. The feature's contribution to the model is not
+     * substantial (below a given threshold) and therefore they can be removed (ignored while classyfying) to increase
+     * the efficiency of the classification process.
+     * @param instances
+     * @return instances object without the specified attributes
+     */
     public Instances removeNonSelectedFeatures(Instances instances){
         //use the previously calculated feature set (from the backwards method) in order to remove the
         //features from the given instances set. NOTE: the same instances attributes must be used otherwise there willbe
@@ -337,7 +360,6 @@ public class SVMEval {
      * @return
      */
     private int[] foldIndices(Instances instances, int foldNum){
-        //todo test method
         //divide to the nearest integer value possible (last set might be smaller than int value by remainder)
 
         int instCount = (int) Math.floor( (double) instances.numInstances() / foldNum); //rounded version of course
@@ -371,29 +393,37 @@ public class SVMEval {
     /**
      * return instances that compose of the data outside the indices and the remaining instances
      * in the second index of the instances array.
-     * @param start
-     * @param end
-     * @param instances
+     * @param start start index of folds
+     * @param end end index of folds
+     * @param instances the instances object to fold
      * @return instancesArray composing of 9/10 division ratio between instances according to instructions above
      */
     private Instances[] getFoldInstances(int start,int end,Instances instances){
-        Enumeration<Instance> instEnum = instances.enumerateInstances();
-        int ix = 0;
+        //Enumeration<Instance> instEnum = instances.enumerateInstances();
         Instances[] instancesArray = new Instances[2] ;
         instancesArray[0] = new Instances(instances,instances.numInstances());
         instancesArray[1] = new Instances(instances,instances.numInstances());
-        //as long as there are more elements to divide - keep on going
-        while(instEnum.hasMoreElements()){
+
+        //if the current fold is not the first one - add +1 to start index to avoid overlapping between folds
+        if(start!=0)
+            start++;
+
+        //fold the instances into 2 instances classes objects, one containing x-1 folds and the other 1 fold
+        for(int ix = 0; ix < instances.numInstances();ix++){
+
             if(ix<start || ix > end)
-                instancesArray[0].add(instEnum.nextElement()); //add to the first instances group (majority of 90%)
+
+                instancesArray[0].add(instances.instance(ix)); //add to the first instances group (x-1 folds)
             else
-                instancesArray[1].add(instEnum.nextElement()); //the smaller group (in our case will be 10%)
+                instancesArray[1].add(instances.instance(ix)); //the smaller group (1 fold)
             ix++; // increment index
 
         }
 
         return instancesArray;
     }
+
+    //main method - according to example given in the exercise instructions
 
     public static void main(String[] args){
         try {
@@ -408,19 +438,23 @@ public class SVMEval {
             Instances trainingData = loadData(training);
             Instances testData = loadData(testing);
 
-            //todo : test randomization of instances
-            Random random = new Random(123123);
+            //randomize instances
+            Random random = new Random(123123); // set random seed
             trainingData.randomize(random);
             testData.randomize(random);
-
             trainingData.setClassIndex(0);
             testData.setClassIndex(0);
 
+            //create a new SVMEval class object
             SVMEval eval = new SVMEval();
 
-            //choose the best kernel using cross fold validation
+            //choose the best kernel using cross fold validation process
+            //NOTE: in my current solution, to avoid mistakes made in the previous ex., i  have created a stand-alone
+            //training classifier, which will serve to test all the kernels using the training data. The resulting
+            //kernel will be set to be the kernel of the main class classifier.
             eval.chooseKernel(trainingData);
 
+            //remove features whose contribution is minimal to the classifier enhance efficiency
             Instances workingSet = eval.backwardsWrapper(trainingData, 0.05, 5);
 
             eval.buildClassifier(workingSet);
@@ -430,6 +464,7 @@ public class SVMEval {
 
             double avgError = eval.calcAvgError(subsetOfFeatures);
 
+            // Finally, print the average error of the working dataset
             System.out.println(avgError);
         }
         catch (Exception c) {
