@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="402b4b87-5812-4520-84c8-f049e8e38e98" name="Default" comment="">
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/hw5/SVMEval.java" afterPath="$PROJECT_DIR$/src/hw5/SVMEval.java" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/HomeWork 5.docx" afterPath="$PROJECT_DIR$/HomeWork 5.docx" />
     </list>
     <ignored path="homework55.iws" />
     <ignored path=".idea/workspace.xml" />
@@ -28,7 +28,7 @@
       <file leaf-file-name="SVMEval.java" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/src/hw5/SVMEval.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state vertical-scroll-proportion="0.3219178">
+            <state vertical-scroll-proportion="6.2260275">
               <caret line="303" column="34" selection-start-line="303" selection-start-column="34" selection-end-line="303" selection-end-column="34" />
               <folding>
                 <element signature="imports" expanded="true" />
@@ -691,12 +691,12 @@
       <workItem from="1462914712492" duration="24703000" />
       <workItem from="1463570644437" duration="10956000" />
       <workItem from="1463682935240" duration="7229000" />
-      <workItem from="1463813917447" duration="6546000" />
+      <workItem from="1463813917447" duration="6554000" />
     </task>
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="49434000" />
+    <option name="totallyTimeSpent" value="49442000" />
   </component>
   <component name="TodoView">
     <todo-panel id="selected-file">
@@ -808,7 +808,7 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/src/hw5/SVMEval.java">
       <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.3219178">
+        <state vertical-scroll-proportion="6.2260275">
           <caret line="303" column="34" selection-start-line="303" selection-start-column="34" selection-end-line="303" selection-end-column="34" />
           <folding>
             <element signature="imports" expanded="true" />
