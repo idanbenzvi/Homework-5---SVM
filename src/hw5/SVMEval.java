@@ -245,10 +245,9 @@ public class SVMEval {
         //set the kernel to the validation classifier during the testing phase
         validationSMO.setKernel(kernel);
 
-
         //test all RBF kernels
         for(int i = C_RBF_KERNEL_MIN ; i <= C_RBF_KERNEL_MAX; i++){
-                //set the kernal gamma value
+            //set the kernal gamma value
             kernel.setGamma(Math.pow(2, i));
 
             //get the instances in the folds and test them
@@ -300,6 +299,10 @@ public class SVMEval {
      * @throws Exception
      */
     public double calcCrossValidationError(Instances instances) throws Exception{
+
+        //randomize the instances when testing the cross fold validation
+        Random rand = new Random(12345);
+        instances.randomize(rand);
 
         //get splitting indices for folding
         int[] subsetIndices = foldIndices(instances,C_NUM_FOLDS);
