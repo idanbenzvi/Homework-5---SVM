@@ -28,8 +28,8 @@
       <file leaf-file-name="SVMEval.java" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/src/hw5/SVMEval.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state vertical-scroll-proportion="0.55479455">
-              <caret line="312" column="32" selection-start-line="312" selection-start-column="32" selection-end-line="312" selection-end-column="32" />
+            <state vertical-scroll-proportion="0.3219178">
+              <caret line="303" column="34" selection-start-line="303" selection-start-column="34" selection-end-line="303" selection-end-column="34" />
               <folding>
                 <element signature="imports" expanded="true" />
               </folding>
@@ -691,12 +691,12 @@
       <workItem from="1462914712492" duration="24703000" />
       <workItem from="1463570644437" duration="10956000" />
       <workItem from="1463682935240" duration="7229000" />
-      <workItem from="1463813917447" duration="5722000" />
+      <workItem from="1463813917447" duration="6546000" />
     </task>
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="48610000" />
+    <option name="totallyTimeSpent" value="49434000" />
   </component>
   <component name="TodoView">
     <todo-panel id="selected-file">
@@ -808,8 +808,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/src/hw5/SVMEval.java">
       <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.55479455">
-          <caret line="312" column="32" selection-start-line="312" selection-start-column="32" selection-end-line="312" selection-end-column="32" />
+        <state vertical-scroll-proportion="0.3219178">
+          <caret line="303" column="34" selection-start-line="303" selection-start-column="34" selection-end-line="303" selection-end-column="34" />
           <folding>
             <element signature="imports" expanded="true" />
           </folding>

@@ -301,7 +301,7 @@ public class SVMEval {
     public double calcCrossValidationError(Instances instances) throws Exception{
 
         //randomize the instances when testing the cross fold validation
-        Random rand = new Random(12345);
+        Random rand = new Random(1);
         instances.randomize(rand);
 
         //get splitting indices for folding
